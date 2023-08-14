@@ -50,6 +50,38 @@ Route::group(['middleware' => ['auth:sanctum']], function () {
     Route::get('/user/prfile', function (Request $request) {
         return $request->user();
     });
+    //update user profile
+    Route::put('/user/profile', function (Request $request) {
+        $data = Validator::make($request->all(), [
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email'],
+            'password' => ['required'],
+            'photo' => 'string',
+        ]);
+
+        if ($data->fails()) {
+            return response()->json(['error' => $data->errors()], 401);
+        }
+        $user = User::where('email', $request->email)->first();
+        if (!$user || !Hash::check($request->password, $user->password)) {
+            throw ValidationException::withMessages([
+                'email' => ['The provided credentials are incorrect.'],
+            ]);
+        }
+        //save image from baswe64 to storage
+        if ($request->photo) {
+            $image = $request->photo;
+            $name = time() . '.' . explode('/', explode(':', substr($image, 0, strpos($image, ';')))[1])[1];
+            \Image::make($request->photo)->save(public_path('storage/profiles/') . $name);
+            $request->merge(['profile_photo_path' => $name]);
+        }
+        $user->update([
+            'name' => $request->name,
+            'email' => $request->email,
+            'profile_photo_path' => $request->profile_photo_path,
+        ]);
+        return response()->json(['message' => 'profile updated successfully']);
+    });
 
     Route::post('/logout', function (Request $request) {
         $request->user()->currentAccessToken()->delete();
